@@ -13,6 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.LongStream;
 
 public class Group {
+    private Group() {}
     @NoArgsConstructor(staticName = "newInstance")
     public static class DAO {
         public Page<Person> findAll() {return findAll(10,1);}
@@ -20,8 +21,8 @@ public class Group {
             return findAll(pageSize, pageNumber, Comparator.comparing(Person::getName));
         }
         public Page<Person> findAll(int pageSize, int pageNumber, Comparator<? super Person> comparateur) {
-            return new Page<>(datasize, pageSize, pageNumber,
-                    members.values().stream().sorted(comparateur).skip(pageNumber*pageSize).limit(pageSize).toList());
+            return new Page<>(DATA_SIZE, pageSize, pageNumber,
+                    members.values().stream().sorted(comparateur).skip((long) pageNumber *pageSize).limit(pageSize).toList());
         }
 
         public Page<Person> search(String criteria) {
@@ -31,30 +32,26 @@ public class Group {
             return search(pageSize, pageNumber, Comparator.comparing(Person::getName), criteria);
         }
         public Page<Person> search(int pageSize, int pageNumber, Comparator<? super Person> comparateur, String criteria) {
-            return new Page<>(datasize, pageSize, pageNumber,
+            return new Page<>(DATA_SIZE, pageSize, pageNumber,
                     members.values().stream()
                             .filter(p->p.getName().contains(criteria))
                             .sorted(comparateur)
-                            .skip((pageNumber-1)*pageSize).limit(pageSize).toList());
+                            .skip((long) (pageNumber - 1) *pageSize).limit(pageSize).toList());
         }
     }
 
-    final private static long datasize = 1000;
+    private static final long DATA_SIZE = 1000;
 
-    final private static Map<UUID, Person> members = new ConcurrentHashMap<>();
+    private static final Map<UUID, Person> members = new ConcurrentHashMap<>();
 
     static {
         Faker faker = new Faker(new Locale("fr"));
-        LongStream.range(0, datasize)
+        LongStream.range(0, DATA_SIZE)
                 .mapToObj(id-> {
                         Name name=faker.name();
                         Address address=faker.address();
                         return Person.of(name.lastName()+", "+name.firstName(),
                         address.streetAddress()+" "+address.zipCode()+" "+address.cityName());})
                 .forEach(p->members.put(p.getUuid(), p));
-    }
-
-    public static void main(String[] args) {
-        System.out.println(new DAO().findAll());
     }
 }

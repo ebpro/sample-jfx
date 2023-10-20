@@ -3,18 +3,19 @@ package fr.univtln.bruno.samples.jfx.fxapp2.view;
 import fr.univtln.bruno.samples.jfx.fxapp2.model.Group;
 import fr.univtln.bruno.samples.jfx.fxapp2.model.Page;
 import fr.univtln.bruno.samples.jfx.fxapp2.model.Person;
+import javafx.beans.binding.ObjectBinding;
+import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.scene.Node;
 import javafx.scene.control.*;
-import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.VBox;
-import javafx.util.Callback;
 import lombok.extern.java.Log;
 
 import java.util.List;
+import java.util.UUID;
 
 @Log
 public class Controller {
@@ -23,7 +24,7 @@ public class Controller {
 
     //A programmatic widget
     private final TableView<Person> table = createTable();
-    private final int pageSize = 10;
+    private static final int PAGE_SIZE = 10;
     //FXML widget bindings
     @FXML
     Pagination paginator;
@@ -46,10 +47,9 @@ public class Controller {
 
         //The search field and button action
         searchButton.setOnAction(event -> searchInNames());
-        searchList.setCellFactory(new Callback<>() {
-            @Override
-            public ListCell<Person> call(ListView<Person> param) {
-                return new ListCell<>() {
+
+        //  javafx.util.Callback as a lambda
+        searchList.setCellFactory(callback-> new ListCell<>() {
                     @Override
                     public void updateItem(Person person, boolean empty) {
                         super.updateItem(person, empty);
@@ -59,31 +59,58 @@ public class Controller {
                             setText(person.getName());
                         }
                     }
-                };
-            }
-        });
+                });
+
         dataContainer.getChildren().add(paginator);
     }
 
     //Programmatic creation a of tableview
     @SuppressWarnings("unchecked")
     private TableView<Person> createTable() {
+        //A tableview of persons
         TableView<Person> tableView = new TableView<>();
-        TableColumn<Person, Integer> id = new TableColumn<>("UUID");
-        id.setSortable(false);
-        id.setCellValueFactory(new PropertyValueFactory<>("uuid"));
+
         TableColumn<Person, String> name = new TableColumn<>("NAME");
+        //The simplest way to bind a data item field by variable name.
+        //NOT TYPESAFE at compile time should be avoided
+        //name.setCellValueFactory(new PropertyValueFactory<>("name"));
+
+        //The same with explicit callback call
+        /*
+        name.setCellValueFactory(new Callback<TableColumn.CellDataFeatures<Person, String>, ObservableValue<String>>() {
+            @Override
+            public ObservableValue<String> call(TableColumn.CellDataFeatures<Person, String> personNameCellDataFeatures) {
+                return new SimpleStringProperty(personNameCellDataFeatures.getValue().getName());
+            }
+        });
+        */
+
+        //the type safe version with lambda (returns to an Observable)
+        //We use a SimpleXProperty utils method from JavaFX
+        name.setCellValueFactory(data-> new SimpleStringProperty(data.getValue().getName()));
         name.setSortable(false);
-        name.setCellValueFactory(new PropertyValueFactory<>("name"));
+
         TableColumn<Person, String> address = new TableColumn<>("ADDRESS");
         address.setSortable(false);
-        address.setCellValueFactory(new PropertyValueFactory<>("address"));
+        address.setCellValueFactory(data->new SimpleStringProperty(data.getValue().getAddress()));
+
+        //If there is not corresponding SimpleXProperty
+        //we use the ObjectBinding wrapper class.
+        TableColumn<Person, UUID> id = new TableColumn<>("UUID");
+        id.setSortable(false);
+        id.setCellValueFactory(data-> new ObjectBinding<>() {
+            @Override
+            protected UUID computeValue() {
+                return data.getValue().getUuid();
+            }
+        });
+
         tableView.getColumns().addAll(id, name, address);
         return tableView;
     }
 
     private Node createPage(int pageNumber) {
-        Page<Person> page = groupDAO.findAll(pageSize, pageNumber);
+        Page<Person> page = groupDAO.findAll(PAGE_SIZE, pageNumber);
         table.setItems(FXCollections.observableArrayList(page.content()));
         paginator.setPageCount((int) (page.dataSize() / page.pageSize()));
         return new BorderPane(table);
@@ -98,12 +125,10 @@ public class Controller {
                 return Group.DAO.newInstance().search(searchText).content();
             }
         };
+        task.setOnSucceeded(event -> searchList.setItems(FXCollections.observableList(task.getValue())));
+
         Thread th = new Thread(task);
         th.setDaemon(true);
         th.start();
-        task.setOnSucceeded(event -> {
-            searchList.setItems(FXCollections.observableList(task.getValue()));
-        });
-
     }
 }

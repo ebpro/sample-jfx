@@ -10,6 +10,9 @@ import lombok.extern.java.Log;
 
 @Log
 public class Controller {
+    /**
+     *
+     */
     @FXML
     private TextField inputField;
     @FXML
